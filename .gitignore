@@ -1,6 +1,4 @@
-# Written by Claude Code when it loads the mod from a folder you own
-.claude-plugin/types/
-tsconfig.json
 __pycache__/
 *.pyc
+node_modules/
 .DS_Store
