@@ -44,7 +44,7 @@ The Pi adapter uses the same Python player but displays it in an **overlay**, no
 pi --extension ./pi/index.ts
 ```
 
-Run `/doomscroll` to open the overlay. Use `j`/`k` for next/previous, `p` to pause, `m` to mute, `o` to open in a browser, and `q` or Escape to close. The video pauses when the overlay closes; audio/video use the same cache and public TikTok feed as the Claude mod. Pi's terminal UI must support kitty graphics. This adapter is experimental and may render fewer frames than the Claude Code mod.
+For split-screen viewing, run `/doomscroll` in Pi, press Ghostty's `Ctrl+Shift+O` to split right, then run `node /home/kingfish/Documents/extension/doomscroll/pi/viewer.mjs` in the right pane. Pi stays on the left. The split is manual: Ghostty does not expose its in-window split action to the Pi process. Use `/doomscroll overlay` for the old overlay mode. In the viewer, use `j`/`k` for next/previous, `p` to pause, `m` to mute, `o` to open in a browser, and `q` or Escape to close. The viewer uses the same cache and public TikTok feed as the Claude mod. This adapter is experimental.
 
 ## Install
 

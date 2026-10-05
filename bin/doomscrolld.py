@@ -191,12 +191,19 @@ def install_hint(missing):
     return " and ".join(parts)
 
 
+def playback_ffmpeg():
+    """Prefer the system build when it supports PulseAudio (bundled builds may not)."""
+    system = "/usr/bin/ffmpeg"
+    if not IS_MAC and os.path.isfile(system) and os.access(system, os.X_OK):
+        return system
+    return "ffmpeg"
+
 def audio_output():
     """ffmpeg's output arguments for the speakers here, or None for silence."""
     if IS_MAC:
         return ["-f", "audiotoolbox", "-"]
     try:
-        devices = subprocess.run(["ffmpeg", "-hide_banner", "-devices"],
+        devices = subprocess.run([playback_ffmpeg(), "-hide_banner", "-devices"],
                                  capture_output=True, text=True, timeout=10).stdout
     except (OSError, subprocess.SubprocessError):
         return None
@@ -609,12 +616,16 @@ class Downloader:
         target = self.path(item)
         partial = os.path.join(self.folder, item["id"] + ".dl.%(ext)s")
         try:
-            subprocess.run(
+            result = subprocess.run(
                 ["yt-dlp", "-q", "--no-warnings", "--no-progress", "--no-playlist", "--no-mtime",
                  "-S", "res:1280", "-f", "b", "-o", partial, item["url"]],
                 capture_output=True, text=True, timeout=180,
             )
-        except (OSError, subprocess.SubprocessError):
+            if result.returncode:
+                emit(f"E video {item['id']}: {(result.stderr or result.stdout or 'yt-dlp failed').strip()[-300:]}")
+                return False
+        except (OSError, subprocess.SubprocessError) as error:
+            emit(f"E video {item['id']}: {error}")
             return False
         got = [n for n in os.listdir(self.folder)
                if n.startswith(item["id"] + ".dl.") and not n.endswith(".part")]
@@ -713,7 +724,7 @@ class Player:
         audio = audio and self.audio_out is not None
         attempts = ([(True, audio)] if HWACCEL else []) + [(False, audio)] + ([(False, False)] if audio else [])
         for hwaccel, with_audio in attempts:
-            argv = ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error"]
+            argv = [playback_ffmpeg(), "-nostdin", "-hide_banner", "-loglevel", "error"]
             if hwaccel:
                 argv += HWACCEL
             argv += ["-ss", f"{max(0.0, pos):.3f}", "-re", "-i", path,
@@ -1076,7 +1087,9 @@ class Daemon:
                 if self.want_play:
                     self._play_current()
             else:
-                self._goto(self.index + 1, 1)
+                self.want_play = False
+                self.player.stop()
+                self.player.pos = 0.0
         self.publish()
 
     # -- control -------------------------------------------------------------

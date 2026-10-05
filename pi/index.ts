@@ -81,7 +81,11 @@ export default function (pi: ExtensionAPI) {
   }
   pi.registerCommand('doomscroll', {
     description: 'Watch TikTok videos in a Pi overlay (j/k next/previous, p pause, m mute, q close)',
-    handler: async (_args, ctx) => {
+    handler: async (args, ctx) => {
+      if (args?.trim() !== 'overlay') {
+        ctx.ui.notify(`Split Ghostty ke kanan (Ctrl+Shift+O), lalu jalankan: node ${join(root, 'pi/viewer.mjs')}. Pi tetap di kiri. /doomscroll overlay untuk mode lama.`, 'info');
+        return;
+      }
       if (ctx.mode !== 'tui') { ctx.ui.notify('Doomscroll needs interactive Pi in Ghostty or kitty.', 'warning'); return; }
       if (getCapabilities().images !== 'kitty') { ctx.ui.notify('Doomscroll needs kitty graphics (Ghostty or kitty).', 'warning'); return; }
       start();

@@ -41,6 +41,31 @@ class TrimTest(unittest.TestCase):
         self.assertLessEqual(len(left), d.KEEP_VIDEOS + 3)
 
 
+class PlaybackEndTest(unittest.TestCase):
+    def test_video_end_stops_on_current_item_until_user_swipes(self):
+        from unittest.mock import Mock
+        daemon = object.__new__(d.Daemon)
+        daemon.lock = __import__('threading').RLock()
+        daemon.player = Mock(epoch=7, pos=3.0)
+        daemon.index = 2
+        daemon._goto = Mock()
+        daemon.publish = Mock()
+        daemon._ended(7, True)
+        daemon._goto.assert_not_called()
+        daemon.player.stop.assert_called_once_with()
+        self.assertEqual(daemon.player.pos, 0.0)
+        daemon.publish.assert_called_once_with()
+
+class DownloadFailureTest(unittest.TestCase):
+    def test_reports_ytdlp_failure_instead_of_silently_discarding_it(self):
+        from unittest.mock import patch
+        folder = tempfile.mkdtemp()
+        downloads = d.Downloader(folder, lambda *_: None)
+        result = type('Result', (), {'returncode': 1, 'stderr': 'TikTok blocked this request'})()
+        with patch.object(d.subprocess, 'run', return_value=result):
+            self.assertFalse(downloads._download({'id': 'broken', 'url': 'https://example.com'}))
+        self.assertTrue(any('TikTok blocked this request' in error for error in d.RECENT_ERRORS))
+
 class ReadyTest(unittest.TestCase):
     def test_a_missing_file_is_not_ready_and_is_fetched_again(self):
         folder = tempfile.mkdtemp()
