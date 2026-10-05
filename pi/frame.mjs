@@ -1,4 +1,7 @@
-import { deflateSync } from 'node:zlib';
+import { deflate, deflateSync } from 'node:zlib';
+import { promisify } from 'node:util';
+
+const compress = promisify(deflate);
 
 const crcTable = Array.from({ length: 256 }, (_, n) => {
   let c = n;
@@ -15,8 +18,28 @@ function chunk(type, data) {
   checksum.writeUInt32BE((crc ^ 0xffffffff) >>> 0);
   return Buffer.concat([size, body, checksum]);
 }
-export function rgbToPng(rgb, width, height) {
+function validateRgb(rgb, width, height) {
   if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1 || width > 4096 || height > 4096 || rgb.length !== width * height * 3) throw new Error('Invalid RGB frame');
+}
+
+// Compress on zlib's worker pool instead of blocking input and frame intake.
+// Raw RGB also avoids PNG scanline copies and the JavaScript CRC pass.
+export async function rgbToKitty(rgb, width, height, cols, rows) {
+  validateRgb(rgb, width, height);
+  const payload = (await compress(rgb, { level: 1 })).toString('base64');
+  const chunks = [];
+  for (let i = 0; i < payload.length; i += 4096) {
+    const more = i + 4096 < payload.length ? 1 : 0;
+    const header = i === 0
+      ? `a=T,f=24,t=d,o=z,s=${width},v=${height},i=1,q=2,C=1,c=${cols},r=${rows},m=${more}`
+      : `m=${more}`;
+    chunks.push(`\x1b_G${header};${payload.slice(i, i + 4096)}\x1b\\`);
+  }
+  return chunks.join('');
+}
+
+export function rgbToPng(rgb, width, height) {
+  validateRgb(rgb, width, height);
   const scanlines = Buffer.alloc(height * (width * 3 + 1));
   for (let y = 0; y < height; y++) rgb.copy(scanlines, y * (width * 3 + 1) + 1, y * width * 3, (y + 1) * width * 3);
   const header = Buffer.alloc(13);

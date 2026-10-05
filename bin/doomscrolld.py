@@ -986,7 +986,12 @@ class Daemon:
         os.makedirs(covers, exist_ok=True)
         self.prerolls = Prerolls(covers, self.downloads, self.background)
         self.is_sliding = False
-        self.feed = Feed(self.cache, [c for c in args.creators.split(",") if c], self._feed_changed)
+        self.personal = getattr(args, 'personal', False)
+        if self.personal:
+            from personal import PersonalFeed
+            self.feed = PersonalFeed(self.cache, self._feed_changed)
+        else:
+            self.feed = Feed(self.cache, [c for c in args.creators.split(",") if c], self._feed_changed)
         self.mix = not args.no_mix
         self.server = None
 
@@ -1009,6 +1014,8 @@ class Daemon:
         with self.lock:
             item = self.feed.get(self.index) if self.index >= 0 else None
             message = self.message
+            if self.personal and self.feed.failed:
+                message = self.feed.failed.get('personal')
             if self.missing:
                 status = "empty"
                 message = (f"Doomscroll needs {', '.join(self.missing)}. "
@@ -1032,6 +1039,7 @@ class Daemon:
             cw, ch = self.cell()
             return {
                 "status": status,
+                "feed_mode": "personal" if self.personal else "guest",
                 "index": self.index,
                 "total": len(self.feed.items),
                 "item": item,
@@ -1060,7 +1068,8 @@ class Daemon:
             elif self.index >= 0:
                 self._prefetch()  # a creator arrived: queue and fetch further ahead
             if self.index < 0 and not self.feed.is_loading() and self.feed.failed:
-                self.message = "Couldn't reach TikTok. Check your connection, update yt-dlp, or /doomscroll add @someone."
+                self.message = (self.feed.failed.get('personal') if self.personal else
+                                "Couldn't reach TikTok. Check your connection, update yt-dlp, or /doomscroll add @someone.")
         self.publish()
 
     def _downloaded(self, item, ok):
@@ -1313,6 +1322,8 @@ class Daemon:
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 
     def shutdown(self):
+        if self.personal:
+            self.feed.close()
         self.player.cleanup()
         try:
             os.unlink(self.sock)
@@ -1337,6 +1348,7 @@ def main():
     parser.add_argument("--creators", default="", help="your own handles, always in the feed")
     parser.add_argument("--no-mix", action="store_true", help="only your creators, no For You mix")
     parser.add_argument("--muted", action="store_true")
+    parser.add_argument("--personal", action="store_true", help="opt-in logged-in browser For You feed; guest is default")
     args = parser.parse_args()
 
     if IS_WINDOWS:

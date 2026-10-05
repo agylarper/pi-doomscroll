@@ -4,14 +4,19 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { request } from 'node:http';
-import { parseFrame, rgbToPng } from './frame.mjs';
+import { parseFrame, rgbToKitty } from './frame.mjs';
 import { createFrameWriter } from './frame-writer.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
+const args = process.argv.slice(2);
+if (args.some(arg => arg !== '--personal')) {
+  console.error('Usage: node pi/viewer.mjs [--personal] (guest is default)');
+  process.exit(1);
+}
 const socket = `/tmp/doomscroll-viewer-${process.pid}.sock`;
 // Keep pipx's newer yt-dlp first. The player selects system ffmpeg for audio.
 const playerPath = [`${process.env.HOME}/.local/bin`, process.env.PATH || ''].join(':');
-const player = spawn('python3', [join(root, 'bin/doomscrolld.py'), '--sock', socket], {
+const player = spawn('python3', [join(root, 'bin/doomscrolld.py'), '--sock', socket, ...args], {
   env: { ...process.env, PATH: playerPath, DOOMSCROLL_TRANSPORT: 'file' },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -41,7 +46,7 @@ function size() {
 }
 function title() {
   const name = state.item?.author || state.message || state.status || 'Loading…';
-  process.stdout.write(`\x1b[H\x1b[2K Doomscroll | ${String(name).slice(0, 45)}\r\n\x1b[2K j/k next/prev  p pause  m mute  o browser  q close`);
+  process.stdout.write(`\x1b[H\x1b[2K Doomscroll ${args.includes('--personal') ? 'Personal' : 'Guest'} | ${String(name).slice(0, 45)}\r\n\x1b[2K j/k next/prev  p pause  m mute  o browser  q close`);
 }
 async function draw() {
   if (drawing || !latest || closed) return;
@@ -50,16 +55,11 @@ async function draw() {
   latest = null;
   try {
     const raw = await readFile(current.path);
-    const png = rgbToPng(raw, current.width, current.height).toString('base64');
+    const encoded = await rgbToKitty(raw, current.width, current.height,
+      Math.max(1, Math.min(process.stdout.columns || 40, 65)),
+      Math.max(1, (process.stdout.rows || 32) - 5));
     // Transmit one complete frame at a time; replace queued frames if stdout lags.
-    const chunks = ['\x1b[3;1H'];
-    const chunkSize = 4096;
-    for (let i = 0; i < png.length; i += chunkSize) {
-      const more = i + chunkSize < png.length ? 1 : 0;
-      const header = i === 0 ? `a=T,f=100,t=d,q=2,c=${Math.max(1, Math.min(process.stdout.columns || 40, 65))},r=${Math.max(1, (process.stdout.rows || 32) - 5)},m=${more}` : `m=${more}`;
-      chunks.push(`\x1b_G${header};${png.slice(i, i + chunkSize)}\x1b\\`);
-    }
-    writer.push(chunks.join('')); 
+    writer.push('\x1b[3;1H' + encoded);
   } catch { /* file ring may rotate before reading */ }
   finally { drawing = false; if (latest) void draw(); }
 }

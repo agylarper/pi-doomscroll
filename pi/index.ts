@@ -80,9 +80,26 @@ export default function (pi: ExtensionAPI) {
     child.on('error', error => { state = { message: `Player error: ${error.message}` }; refresh?.(); });
   }
   pi.registerCommand('doomscroll', {
-    description: 'Watch TikTok videos in a Pi overlay (j/k next/previous, p pause, m mute, q close)',
+    description: 'Guest video viewer (default), optional personal/login/logout, or overlay',
     handler: async (args, ctx) => {
-      if (args?.trim() !== 'overlay') {
+      const mode = args?.trim();
+      if (mode === 'login' || mode === 'logout') {
+        ctx.ui.notify(mode === 'login' ? 'Login langsung di browser TikTok, lalu tutup browser untuk menyimpan sesi. Guest tetap default.' : 'Menghapus sesi TikTok lokal…', 'info');
+        await new Promise<void>(resolve => {
+          const browser = spawn('python3', [join(root, 'bin/personal.py'), mode], { stdio: 'ignore' });
+          browser.on('error', () => { ctx.ui.notify('Gagal menjalankan browser TikTok. Lihat setup Playwright di README.', 'error'); resolve(); });
+          browser.on('exit', code => {
+            ctx.ui.notify(code === 0 ? 'Selesai. Guest tetap default; /doomscroll personal untuk opsi akun.' : 'Gagal. Pastikan Playwright terpasang dan viewer personal ditutup. Coba npm run ' + mode + ' untuk petunjuk.', code === 0 ? 'info' : 'error');
+            resolve();
+          });
+        });
+        return;
+      }
+      if (mode === 'personal') {
+        ctx.ui.notify(`Mode akun opsional: buka split Ghostty, lalu node ${join(root, 'pi/viewer.mjs')} --personal. Login dulu dengan /doomscroll login.`, 'info');
+        return;
+      }
+      if (mode !== 'overlay') {
         ctx.ui.notify(`Split Ghostty ke kanan (Ctrl+Shift+O), lalu jalankan: node ${join(root, 'pi/viewer.mjs')}. Pi tetap di kiri. /doomscroll overlay untuk mode lama.`, 'info');
         return;
       }
