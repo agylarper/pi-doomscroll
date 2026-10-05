@@ -36,6 +36,16 @@ Keep `yt-dlp` up to date (`brew upgrade yt-dlp` or `pipx upgrade yt-dlp`), becau
 
 For the full effect, use Claude Code's fullscreen layout, where the pane docks beside the transcript. Set `"tui": "fullscreen"` in `~/.claude/settings.json`. A dark Claude Code theme (`/theme`) in a dark terminal looks best. The pane takes your terminal's background colour, read from your Ghostty or kitty config.
 
+## Use with Pi (experimental)
+
+The Pi adapter uses the same Python player but displays it in an **overlay**, not Claude Code's persistent side pane. Install the requirements above, use Ghostty or kitty, then from this repository run:
+
+```bash
+pi --extension ./pi/index.ts
+```
+
+Run `/doomscroll` to open the overlay. Use `j`/`k` for next/previous, `p` to pause, `m` to mute, `o` to open in a browser, and `q` or Escape to close. The video pauses when the overlay closes; audio/video use the same cache and public TikTok feed as the Claude mod. Pi's terminal UI must support kitty graphics. This adapter is experimental and may render fewer frames than the Claude Code mod.
+
 ## Install
 
 ```bash
